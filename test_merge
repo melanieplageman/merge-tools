@@ -21,7 +21,7 @@ setup() {
 
 teardown() {
 	cd "${BATS_TMPDIR}"
-	rm -r test-directory
+	rm -rf test-directory
 }
 
 @test "merge needs two arguments" {
