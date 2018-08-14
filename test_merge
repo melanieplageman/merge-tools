@@ -1,0 +1,83 @@
+#! /usr/bin/env bats
+
+outputContains() {
+	echo "$output"
+	[[ "$output" = *"$1"* ]]
+}
+
+setup() {
+	export TEST_PATH=`pwd`
+
+	cd "${BATS_TMPDIR}"
+	mkdir test-directory
+	cd test-directory
+
+	git init
+
+	git commit --allow-empty -m "Initial commit"
+	git commit --allow-empty -m "Second commit"
+	git commit --allow-empty -m "Third commit"
+}
+
+teardown() {
+	cd "${BATS_TMPDIR}"
+	rm -r test-directory
+}
+
+@test "merge needs two arguments" {
+	run ${TEST_PATH}/merge
+
+	[ "$status" -eq 1 ]
+	outputContains "two arguments are required"
+}
+
+@test "merge needs a valid commit to merge" {
+	run ${TEST_PATH}/merge blahblahblah blah
+
+	[ "$status" -eq 1 ]
+	outputContains "blahblahblah is not a valid commit SHA"
+}
+
+@test "merge needs a valid commit to resolve with" {
+	run ${TEST_PATH}/merge HEAD blahblahblah
+
+	[ "$status" -eq 1 ]
+	outputContains "current branch is not an ancestor of blahblahblah"
+}
+
+@test "merge needs the current HEAD to be an ancestor of the resolution commit" {
+    merge_commit=HEAD # it's not important what this is, but it must exist
+
+	run ${TEST_PATH}/merge "${merge_commit}" HEAD^
+
+	[ "$status" -eq 1 ]
+	outputContains "current branch is not an ancestor of HEAD^"
+}
+
+@test "merge needs the merge commit to be an ancestor of the resolution commit" {
+	merge=$(git rev-parse :/Third)
+	resolution=$(git rev-parse :/Second)
+	git reset --hard :/Initial
+
+    run ${TEST_PATH}/merge "${merge}" "${resolution}"
+
+	[ "$status" -eq 1 ]
+	outputContains "${merge} is not an ancestor of ${resolution}"
+}
+
+@test "merge fails if the actual merge can't be started" {
+	git checkout --orphan disconnected
+	git commit --allow-empty -m "Disconnected"
+	merge=$(git rev-parse HEAD)
+
+	git merge master --allow-unrelated-histories -m "Merge commit"
+	resolution=$(git rev-parse HEAD)
+
+	git reset --hard master
+
+	run ${TEST_PATH}/merge "${merge}" "${resolution}"
+
+	[ "$status" -eq 1 ]
+	outputContains "merge is not in progress"
+}
+

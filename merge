@@ -1,0 +1,48 @@
+#! /bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+if [ $# -ne 2 ]; then
+	echo two arguments are required
+	exit 1
+fi
+
+merge_commit=$1
+iteration_branch=$2
+
+# check that merge commit is a valid git commit
+if ! git rev-parse --verify --quiet "${merge_commit}^{commit}" > /dev/null; then
+	echo "${merge_commit}" is not a valid commit SHA
+	exit 1
+fi
+
+# check that the tip of the current branch is an ancestor of the iteration branch
+if ! git merge-base --is-ancestor HEAD "${iteration_branch}"; then
+	echo current branch is not an ancestor of "${iteration_branch}"
+	exit 1
+fi
+
+# check that the merge commit is an ancestor of the iteration branch
+if ! git merge-base --is-ancestor "${merge_commit}" "${iteration_branch}"; then
+	echo "${merge_commit}" is not an ancestor of "${iteration_branch}"
+	exit 1
+fi
+
+# merge into the current branch
+if git merge --no-commit "${merge_commit}"; then
+	echo "warning: merge proceeded without conflicts"
+fi
+
+# check to make sure merge is in progress
+if git merge HEAD; then
+	echo "merge is not in progress"
+	exit 1
+fi
+
+git reset "${iteration_branch}" .
+
+git checkout .
+
+echo 'Please run `git commit` and enter a detailed commit message. The merge has successfully reached this stage'
